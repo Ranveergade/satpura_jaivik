@@ -25,11 +25,6 @@ SECRET_KEY = 'django-insecure-vwem)&uy*=g2#rn+0hb%jr)=fpb8=qkp8d6__5bbo(&7rumltx
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
-
-# Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -37,30 +32,28 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third-party
-    "rest_framework",
-    "corsheaders",
-    "drf_spectacular",
-    #manually added apps
-       "apps.authentication",
-    "apps.users",
-    "apps.farmers",
-    "apps.projects",
-    "apps.expenses",
-    "apps.work_logs",
-    "apps.media",
-    "apps.notifications",
-    "apps.chat",
-    "apps.cctv",
-    "apps.iot",
-    "apps.reports",
-    "apps.farm_revenue",
-    "apps.branding",
-    "apps.audit",
+
+    'corsheaders',
+    'rest_framework',
+
+    'apps.authentication',
+    'apps.users',
+    'apps.farmers',
+    'apps.projects',
+    'apps.expenses',
+    'apps.work_logs',
+    'apps.media',
+    'apps.cctv',
+    'apps.iot',
+    'apps.chat',
+    'apps.notifications',
+    'apps.reports',
+    'apps.audit',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -68,6 +61,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
 
 ROOT_URLCONF = 'config.urls'
 
@@ -144,4 +141,15 @@ MAILERS = {
     'default': {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
+}
+
+AUTH_USER_MODEL = "users.User"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
 }
