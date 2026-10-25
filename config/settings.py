@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'auditlog',
     "rest_framework_simplejwt.token_blacklist",
+    'worklogs',
 ]
 
 MIDDLEWARE = [

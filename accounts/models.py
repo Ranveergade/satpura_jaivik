@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+
+
 class User(AbstractUser):
     class Role(models.TextChoices):
         SUPER_ADMINISTRATOR = "SUPER_ADMINISTRATOR", "Super Administrator"
@@ -44,14 +46,29 @@ class EmailOTP(models.Model):
         import secrets
         return f"{secrets.randbelow(1_000_000):06d}"
 
+    
     def set_code(self, code):
         import hashlib
-        self.code_hash = hashlib.sha256(code.encode()).hexdigest()
+        import hmac
+        from django.conf import settings
+
+        self.code_hash = hmac.new(
+            settings.SECRET_KEY.encode(),
+            code.encode(),
+            hashlib.sha256,
+        ).hexdigest()
 
     def verify_code(self, code):
         import hashlib
         import hmac
+        from django.conf import settings
 
-        submitted_hash = hashlib.sha256(code.encode()).hexdigest()
+        submitted_hash = hmac.new(
+            settings.SECRET_KEY.encode(),
+            code.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
         return hmac.compare_digest(self.code_hash, submitted_hash)
+
 
