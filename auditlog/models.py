@@ -15,9 +15,11 @@ class AuditLog(models.Model):
         PROJECT_UPDATED = "PROJECT_UPDATED", "Project Updated"
         WORK_LOG_CREATED = "WORK_LOG_CREATED", "Daily Work Log Created"
         LABOUR_ATTENDANCE_CREATED = (
-    "LABOUR_ATTENDANCE_CREATED",
-    "Labour Attendance Created",
-)
+                "LABOUR_ATTENDANCE_CREATED",
+                "Labour Attendance Created",
+            )
+        EXPENSE_CREATED = "EXPENSE_CREATED", "Expense Created"
+        EXPENSE_REVIEWED = "EXPENSE_REVIEWED", "Expense Reviewed"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
