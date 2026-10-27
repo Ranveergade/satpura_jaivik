@@ -18,15 +18,88 @@ from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
 )
+from rest_framework import generics
 
 from .models import EmailOTP
 from auditlog.models import AuditLog
 from auditlog.utils import record_audit
+from .models import FarmerProfile
+from .serializers import FarmerProfileSerializer
+from .permissions import IsFarmerOrPrivilegedStaff
 
 OTP_LIFETIME_MINUTES = 5
 OTP_MAX_ATTEMPTS = 5
 OTP_RESEND_COOLDOWN_SECONDS = 60
 
+
+class FarmerProfileListCreateView(generics.ListCreateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [
+        IsAuthenticated,
+        IsFarmerOrPrivilegedStaff,
+    ]
+    serializer_class = FarmerProfileSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.role == "FARMER":
+            return FarmerProfile.objects.filter(user=user)
+
+        return FarmerProfile.objects.filter(user__role="FARMER")
+
+    def perform_create(self, serializer):
+        user_id = self.request.data.get("user")
+
+        if not user_id:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {"user": "A farmer account ID is required."}
+            )
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        try:
+            farmer = User.objects.get(
+                pk=user_id,
+                role="FARMER",
+                is_active=True,
+            )
+        except (User.DoesNotExist, ValueError, TypeError):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {"user": "Select a valid active farmer account."}
+            )
+
+        if (
+            self.request.user.role == "FARMER"
+            and farmer.pk != self.request.user.pk
+        ):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(
+                "You can only create your own profile."
+            )
+
+        serializer.save(user=farmer)
+
+
+class FarmerProfileDetailView(generics.RetrieveUpdateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [
+        IsAuthenticated,
+        IsFarmerOrPrivilegedStaff,
+    ]
+    serializer_class = FarmerProfileSerializer
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.role == "FARMER":
+            return FarmerProfile.objects.filter(user=user)
+
+        return FarmerProfile.objects.filter(user__role="FARMER")
 
 def read_json_body(request):
     try:

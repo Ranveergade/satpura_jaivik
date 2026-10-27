@@ -45,3 +45,31 @@ class CanManageProjects(BasePermission):
             and user.is_active
             and user.role in self.allowed_roles
         )
+
+
+
+
+class IsFarmerOrPrivilegedStaff(BasePermission):
+    """
+    Farmers can access their own profile.
+    Privileged staff can manage farmer profiles.
+    """
+
+    staff_roles = {
+        "SUPER_ADMINISTRATOR",
+        "ADMINISTRATOR",
+        "ACCOUNTS",
+        "MANAGEMENT",
+    }
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and user.is_active
+            and (
+                user.role == "FARMER"
+                or user.role in self.staff_roles
+            )
+        )

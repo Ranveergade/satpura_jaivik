@@ -555,8 +555,7 @@ def project_update(request, project_id):
                 "Estimated completion date cannot be before the start date."
             )
 
-        project.full_clean()
-        project.save()
+        
 
         
         with transaction.atomic():

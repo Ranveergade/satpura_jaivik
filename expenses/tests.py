@@ -4,7 +4,7 @@ from datetime import date
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
-
+from unittest.mock import patch
 from auditlog.models import AuditLog
 from projects.models import Project
 from .models import Expense
@@ -62,7 +62,22 @@ class ExpenseAPITests(APITestCase):
             start_date=date(2026, 1, 1),
             estimated_completion_date=date(2026, 12, 31),
         )
+    @patch("expenses.views.record_audit")
+    def test_audit_failure_rolls_back_expense_creation(self, mock_record_audit):
+        mock_record_audit.side_effect = RuntimeError("Simulated audit failure")
 
+        self.authenticate(self.supervisor)
+
+        initial_count = Expense.objects.count()
+
+        with self.assertRaises(RuntimeError):
+            self.client.post(
+                self.list_url,
+                self.payload(),
+                format="json",
+            )
+
+        self.assertEqual(Expense.objects.count(), initial_count)
     def payload(self, project_id=None):
         return {
             "project": project_id or self.project.pk,
@@ -228,3 +243,92 @@ class ExpenseAPITests(APITestCase):
                 record_id=str(expense.pk),
             ).exists()
         )
+
+    def test_approved_expense_cannot_be_reviewed_again(self):
+        expense = self.create_expense()
+        expense.status = Expense.Status.APPROVED
+        expense.reviewed_by = self.accounts
+        expense.save()
+
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            f"/api/expenses/{expense.pk}/review/",
+            {"decision": "REJECTED", "review_note": "Trying again"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        expense.refresh_from_db()
+        self.assertEqual(expense.status, Expense.Status.APPROVED)
+
+
+    def test_rejected_expense_cannot_be_reviewed_again(self):
+        expense = self.create_expense()
+        expense.status = Expense.Status.REJECTED
+        expense.reviewed_by = self.accounts
+        expense.review_note = "Original rejection"
+        expense.save()
+
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            f"/api/expenses/{expense.pk}/review/",
+            {"decision": "APPROVED", "review_note": ""},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        expense.refresh_from_db()
+        self.assertEqual(expense.status, Expense.Status.REJECTED)
+        self.assertEqual(expense.review_note, "Original rejection")
+
+
+    def test_invalid_review_decision_does_not_change_expense(self):
+        expense = self.create_expense()
+        self.authenticate(self.accounts)
+
+        response = self.client.post(
+            f"/api/expenses/{expense.pk}/review/",
+            {"decision": "MAYBE", "review_note": ""},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        expense.refresh_from_db()
+        self.assertEqual(expense.status, Expense.Status.PENDING)
+        self.assertIsNone(expense.reviewed_by)
+
+
+    def test_supervisor_cannot_review_expense(self):
+        expense = self.create_expense()
+        self.authenticate(self.other_supervisor)
+
+        response = self.client.post(
+            f"/api/expenses/{expense.pk}/review/",
+            {"decision": "APPROVED", "review_note": ""},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        expense.refresh_from_db()
+        self.assertEqual(expense.status, Expense.Status.PENDING)
+
+
+    def test_unauthenticated_user_cannot_review_expense(self):
+        expense = self.create_expense()
+
+        response = self.client.post(
+            f"/api/expenses/{expense.pk}/review/",
+            {"decision": "APPROVED", "review_note": ""},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        expense.refresh_from_db()
+        self.assertEqual(expense.status, Expense.Status.PENDING)

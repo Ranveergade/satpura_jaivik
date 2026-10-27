@@ -49,6 +49,37 @@ class DailyWorkLog(models.Model):
         )
 
 
+
+
+
+class Worker(models.Model):
+    name = models.CharField(max_length=150)
+    phone_number = models.CharField(max_length=15, db_index=True)
+    skill = models.CharField(max_length=100, blank=True)
+    daily_wage = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+    )
+    is_active = models.BooleanField(default=True)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="registered_workers",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["is_active", "name"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} - ₹{self.daily_wage}/day"
+
 class LabourAttendance(models.Model):
     class Status(models.TextChoices):
         PRESENT = "PRESENT", "Present"
@@ -60,6 +91,13 @@ class LabourAttendance(models.Model):
         on_delete=models.CASCADE,
         related_name="attendance_records",
     )
+    worker = models.ForeignKey(
+        "worklogs.Worker",
+        on_delete=models.PROTECT,
+        related_name="attendance_records",
+        null=True,
+        blank=True,
+            )
 
     worker_name = models.CharField(max_length=150)
 
@@ -92,3 +130,51 @@ class LabourAttendance(models.Model):
             f"{self.status} | "
             f"Work Log #{self.work_log_id}"
         )
+
+class ProjectWorkerAssignment(models.Model):
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.PROTECT,
+        related_name="worker_assignments",
+    )
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.PROTECT,
+        related_name="project_assignments",
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="worker_assignments_created",
+    )
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    agreed_daily_wage = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-start_date"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(end_date__isnull=True)
+                    | models.Q(end_date__gte=models.F("start_date"))
+                ),
+                name="assignment_end_after_start",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(agreed_daily_wage__gte=0),
+                name="assignment_wage_nonnegative",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["project", "is_active"]),
+            models.Index(fields=["worker", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.worker.name} -> {self.project}"

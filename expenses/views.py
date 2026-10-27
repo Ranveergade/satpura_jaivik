@@ -1,5 +1,5 @@
 
-from datetime import date
+from django.db import transaction
 
 from rest_framework import status
 from rest_framework.decorators import (
@@ -14,7 +14,6 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from accounts.permissions import IsProjectViewer
 from auditlog.models import AuditLog
 from auditlog.utils import record_audit
-from projects.models import Project
 
 from .models import Expense
 from .serializers import ExpenseSerializer
@@ -72,27 +71,25 @@ def expense_list_create(request):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    if request.user.role in ADMIN_ROLES:
-        pass
+    with transaction.atomic():
+        expense = serializer.save(
+            submitted_by=request.user,
+            status=Expense.Status.PENDING,
+        )
 
-    expense = serializer.save(
-        submitted_by=request.user,
-        status=Expense.Status.PENDING,
-    )
-
-    record_audit(
-        action=AuditLog.Action.EXPENSE_CREATED,
-        user=request.user,
-        request=request,
-        entity_type="Expense",
-        record_id=expense.pk,
-        changes={
-            "project_id": expense.project_id,
-            "amount": str(expense.amount),
-            "category": expense.category,
-            "status": expense.status,
-        },
-    )
+        record_audit(
+            action=AuditLog.Action.EXPENSE_CREATED,
+            user=request.user,
+            request=request,
+            entity_type="Expense",
+            record_id=expense.pk,
+            changes={
+                "project_id": expense.project_id,
+                "amount": str(expense.amount),
+                "category": expense.category,
+                "status": expense.status,
+            },
+        )
 
     return Response(
         ExpenseSerializer(expense).data,
@@ -108,26 +105,6 @@ def expense_review(request, expense_id):
         return Response(
             {"error": "You are not authorized to review expenses."},
             status=status.HTTP_403_FORBIDDEN,
-        )
-
-    expense = Expense.objects.filter(pk=expense_id).first()
-
-    if expense is None:
-        return Response(
-            {"error": "Expense not found."},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-
-    if expense.submitted_by_id == request.user.pk:
-        return Response(
-            {"error": "You cannot review your own expense."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    if expense.status != Expense.Status.PENDING:
-        return Response(
-            {"error": "Only pending expenses can be reviewed."},
-            status=status.HTTP_400_BAD_REQUEST,
         )
 
     decision = request.data.get("decision")
@@ -156,30 +133,56 @@ def expense_review(request, expense_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    old_status = expense.status
-    expense.status = decision
-    expense.reviewed_by = request.user
-    expense.review_note = review_note
-    expense.save(
-        update_fields=[
-            "status",
-            "reviewed_by",
-            "review_note",
-            "updated_at",
-        ]
-    )
+    with transaction.atomic():
+        expense = (
+            Expense.objects.select_for_update()
+            .filter(pk=expense_id)
+            .first()
+        )
 
-    record_audit(
-        action=AuditLog.Action.EXPENSE_REVIEWED,
-        user=request.user,
-        request=request,
-        entity_type="Expense",
-        record_id=expense.pk,
-        changes={
-            "old_status": old_status,
-            "new_status": expense.status,
-            "review_note": expense.review_note,
-        },
-    )
+        if expense is None:
+            return Response(
+                {"error": "Expense not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if expense.submitted_by_id == request.user.pk:
+            return Response(
+                {"error": "You cannot review your own expense."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if expense.status != Expense.Status.PENDING:
+            return Response(
+                {"error": "Only pending expenses can be reviewed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_status = expense.status
+        expense.status = decision
+        expense.reviewed_by = request.user
+        expense.review_note = review_note
+
+        expense.save(
+            update_fields=[
+                "status",
+                "reviewed_by",
+                "review_note",
+                "updated_at",
+            ]
+        )
+
+        record_audit(
+            action=AuditLog.Action.EXPENSE_REVIEWED,
+            user=request.user,
+            request=request,
+            entity_type="Expense",
+            record_id=expense.pk,
+            changes={
+                "old_status": old_status,
+                "new_status": expense.status,
+                "review_note": expense.review_note,
+            },
+        )
 
     return Response(ExpenseSerializer(expense).data)

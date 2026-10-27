@@ -16,4 +16,31 @@ urlpatterns = [
         views.labour_attendance_detail,
         name="labour-attendance-detail",
     ),
+    path(
+        "workers/",
+        views.WorkerListCreateView.as_view(),
+        name="worker-list-create",
+            ),
+    path(
+        "workers/<int:pk>/",
+        views.WorkerDetailView.as_view(),
+        name="worker-detail",   
+            ),
+
+    path(
+        "assignments/",
+        views.ProjectWorkerAssignmentListCreateView.as_view(),
+        name="worker-assignment-list-create",
+        ),
+    path(
+        "assignments/<int:pk>/",
+        views.ProjectWorkerAssignmentDetailView.as_view(),
+        name="worker-assignment-detail",
+        ),
+    path(
+        "projects/labour-summary/",
+        views.ProjectLabourSummaryView.as_view(),
+        name="project-labour-summary",
+            ),
+
 ]
