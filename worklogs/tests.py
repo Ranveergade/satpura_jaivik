@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from auditlog.models import AuditLog
 from projects.models import Project
-from .models import DailyWorkLog
+from .models import DailyWorkLog, Worker, ProjectWorkerAssignment
 
 
 User = get_user_model()
@@ -259,4 +259,99 @@ class DailyWorkLogAPITests(APITestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_404_NOT_FOUND,
+        )
+
+
+class ProjectWorkerAssignmentAPITests(APITestCase):
+    """Regression coverage for worker assignment serialization.
+
+    The assignment serializer exposes a derived ``project_name`` field.
+    It used to read ``project.name``, which does not exist on the Project
+    model and raised an AttributeError (HTTP 500) on list responses.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="assignment_admin",
+            password="Test-Password-123!",
+            role="ADMINISTRATOR",
+        )
+        self.supervisor = User.objects.create_user(
+            username="assignment_supervisor",
+            password="Test-Password-123!",
+            role="SUPERVISOR",
+        )
+        self.farmer = User.objects.create_user(
+            username="assignment_farmer",
+            password="Test-Password-123!",
+            role="FARMER",
+        )
+
+        self.project = Project.objects.create(
+            farmer=self.farmer,
+            supervisor=self.supervisor,
+            land_details="Test farm",
+            land_area="5.00",
+            crop_type="Soybean",
+            project_budget="50000.00",
+            subsidy_amount="0.00",
+            loan_amount="0.00",
+            start_date=date(2026, 1, 1),
+            estimated_completion_date=date(2026, 12, 31),
+        )
+
+        self.worker = Worker.objects.create(
+            name="Ramesh Kumar",
+            phone_number="9999999999",
+            skill="Field",
+            daily_wage="2500.00",
+            created_by=self.supervisor,
+        )
+
+        self.assignment = ProjectWorkerAssignment.objects.create(
+            project=self.project,
+            worker=self.worker,
+            assigned_by=self.supervisor,
+            start_date=date(2026, 10, 25),
+            agreed_daily_wage="2500.00",
+        )
+
+    def test_assignment_list_serializes_project_name(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get("/api/work-logs/assignments/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["project_name"],
+            f"Project #{self.project.pk} - Soybean",
+        )
+
+    def test_assignment_detail_serializes_project_name(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            f"/api/work-logs/assignments/{self.assignment.pk}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["project_name"],
+            f"Project #{self.project.pk} - Soybean",
+        )
+
+    def test_assignment_project_name_omits_empty_crop(self):
+        self.project.crop_type = ""
+        self.project.save(update_fields=["crop_type"])
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            f"/api/work-logs/assignments/{self.assignment.pk}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["project_name"],
+            f"Project #{self.project.pk}",
         )

@@ -212,11 +212,7 @@ class ProjectWorkerAssignmentSerializer(serializers.ModelSerializer):
         source="worker.name",
         read_only=True,
     )
-    project_name = serializers.CharField(
-        source="project.name",
-        read_only=True,
-        default="",
-    )
+    project_name = serializers.SerializerMethodField()
     assigned_by_username = serializers.CharField(
         source="assigned_by.username",
         read_only=True,
@@ -270,6 +266,11 @@ class ProjectWorkerAssignmentSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+
+    def get_project_name(self, obj):
+        crop = (getattr(obj.project, "crop_type", "") or "").strip()
+        label = f"Project #{obj.project_id}"
+        return f"{label} - {crop}" if crop else label
 
 
 
