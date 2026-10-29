@@ -3,6 +3,8 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core import mail
+from django.test import SimpleTestCase
 from django.utils import timezone
 
 from rest_framework import status
@@ -12,6 +14,24 @@ from .models import EmailOTP
 
 
 User = get_user_model()
+
+
+class EmailBackendConfigurationTests(SimpleTestCase):
+    """The configured mailer must deliver mail without a network.
+
+    ``send_mail`` uses MAILERS["default"]. Django rejects mixing the
+    deprecated EMAIL_BACKEND with MAILERS, so only MAILERS is configured.
+    """
+
+    def test_configured_backend_delivers_mail(self):
+        sent = mail.send_mail(
+            "OTP test",
+            "Test message",
+            "noreply@example.test",
+            ["farmer@example.test"],
+        )
+
+        self.assertEqual(sent, 1)
 
 
 class AuthenticationTests(APITestCase):

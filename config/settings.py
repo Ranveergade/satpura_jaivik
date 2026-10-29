@@ -33,6 +33,18 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# The Next.js dev server may be opened as either localhost or 127.0.0.1.
+# Django checks the browser Origin against the proxied Host, so both dev
+# origins must be trusted. Override with a comma-separated env var in prod.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        "http://127.0.0.1:3000,http://localhost:3000",
+    ).split(",")
+    if origin.strip()
+]
+
 
 # Application definition
 
@@ -140,6 +152,9 @@ STATIC_URL = 'static/'
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
+# Django 6.1 mailer configuration. The console backend prints login OTPs in
+# the runserver terminal for local development. Do not also set the deprecated
+# EMAIL_BACKEND: Django rejects mixing it with MAILERS.
 MAILERS = {
     'default': {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
