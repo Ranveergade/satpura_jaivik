@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: "Noto Sans Devanagari", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
+
+  --color-forest: #174b35;
+  --color-primary: #237547;
+  --color-leaf: #6eaa57;
+  --color-pale: #eef5ec;
+  --color-bg: #f8f8f2;
+  --color-ink: #202720;
+  --color-secondary: #68736a;
+
+  --color-amber: #b7791f;
+  --color-red: #b3261e;
+  --color-blue: #1d4ed8;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
