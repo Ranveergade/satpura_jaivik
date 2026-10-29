@@ -13,19 +13,20 @@ Derived from backend source in this repository. Claims cite file and line. Do no
 
 | Item | Source |
 |------|--------|
-| Django 6.1.2, DRF 3.18.3, SimpleJWT 5.5.1, psycopg 3.3.6 | `.venv` `pip freeze` (no `requirements.txt` in repo) |
-| Database: PostgreSQL via `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST` (default `127.0.0.1`), `DB_PORT` (default `5432`) | `config/settings.py` 90–99, 19 |
-| `DEBUG = True`, `ALLOWED_HOSTS = []` | `config/settings.py` 32–34 |
-| `AUTH_USER_MODEL = 'accounts.User'` | `config/settings.py` 65 |
-| Email: `MAILERS` console backend (no `EMAIL_BACKEND`; Django rejects mixing the two) | `config/settings.py` 157–163 |
-| CSRF trusted dev origins: `http://127.0.0.1:3000`, `http://localhost:3000`, overridable via `CSRF_TRUSTED_ORIGINS` | `config/settings.py` 36–47 |
+| Django 6.1.2, DRF 3.18.3, SimpleJWT 5.5.1, psycopg 3.3.6 | `.venv` `pip freeze`; pinned in `requirements.txt` |
+| Database: PostgreSQL via `DATABASE_URL` when set, otherwise `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST` (default `127.0.0.1`), `DB_PORT` (default `5432`) | `config/settings.py` 111–140 |
+| `SECRET_KEY`, `DEBUG` (default true), and `ALLOWED_HOSTS` are environment-driven | `config/settings.py` 30–45 |
+| `AUTH_USER_MODEL = 'accounts.User'` | `config/settings.py` 92 |
+| Email: `MAILERS` SMTP when `EMAIL_HOST` is set, otherwise the console backend (no `EMAIL_BACKEND`; Django rejects mixing the two) | `config/settings.py` 187–215 |
+| CSRF trusted dev origins: `http://127.0.0.1:3000`, `http://localhost:3000`; production must set `CSRF_TRUSTED_ORIGINS` | `config/settings.py` 47–58 |
+| Static files: `STATIC_ROOT`, WhiteNoise middleware, compressed manifest storage | `config/settings.py` 83, 175–185 |
 | No `CORS_*` settings, no `django-cors-headers` | `config/settings.py` (full file) |
-| CSRF: default Django `CsrfViewMiddleware` enabled | `config/settings.py` 71 |
-| JWT auth only for DRF | `config/settings.py` 165–169 |
+| CSRF: default Django `CsrfViewMiddleware` enabled | `config/settings.py` 86 |
+| JWT auth only for DRF | `config/settings.py` 218–222 |
 | No `SIMPLEJWT` dict in Django settings | `config/settings.py` (full file) |
+| Deployment blueprint: Render web service + PostgreSQL | `render.yaml`, `docs/DEPLOYMENT.md` |
 | README is a one-line title; frontend has its own README | `README.md` 1, `frontend/README.md` |
-| `.env.example` documents DB, CSRF, and frontend env values; `.env` is gitignored | `.env.example`, `.gitignore` 2 |
-| `db.sqlite3` exists on disk but is gitignored and unused by settings | `.gitignore` 6; `config/settings.py` 90–99 |
+| `.env.example` documents DB, production, mail, CSRF, and frontend env values; `.env` is gitignored | `.env.example`, `.gitignore` 2 |
 
 **Token lifetimes (SimpleJWT 5.5.1 defaults, not overridden):** `ACCESS_TOKEN_LIFETIME = timedelta(minutes=5)`, `REFRESH_TOKEN_LIFETIME = timedelta(days=1)`, `ROTATE_REFRESH_TOKENS = False`, `AUTH_HEADER_TYPES = ("Bearer",)`, `AUTH_HEADER_NAME = "HTTP_AUTHORIZATION"`. Source: installed package `rest_framework_simplejwt/settings.py` `DEFAULTS`.
 
