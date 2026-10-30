@@ -1,5 +1,5 @@
-
 .env
+.env.local
 .venv/
 __pycache__/
 *.py[cod]
@@ -7,5 +7,6 @@ db.sqlite3
 staticfiles/
 .vercel
 
-.vercel
-.env*
+# Agent tooling installed locally (skills add), not part of the app.
+.agents/
+skills-lock.json

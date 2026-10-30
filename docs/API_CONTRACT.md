@@ -24,7 +24,8 @@ Derived from backend source in this repository. Claims cite file and line. Do no
 | CSRF: default Django `CsrfViewMiddleware` enabled | `config/settings.py` 86 |
 | JWT auth only for DRF | `config/settings.py` 218–222 |
 | No `SIMPLEJWT` dict in Django settings | `config/settings.py` (full file) |
-| Deployment blueprint: Render web service + PostgreSQL | `render.yaml`, `docs/DEPLOYMENT.md` |
+| Deployment: two Vercel projects from this repo (Django API at the root, Next.js in `frontend/`) backed by Neon Postgres | `docs/DEPLOYMENT.md` |
+| First hosted accounts come from `BOOTSTRAP_*` env vars via the idempotent `bootstrap_users` management command | `accounts/management/commands/bootstrap_users.py` |
 | README is a one-line title; frontend has its own README | `README.md` 1, `frontend/README.md` |
 | `.env.example` documents DB, production, mail, CSRF, and frontend env values; `.env` is gitignored | `.env.example`, `.gitignore` 2 |
 

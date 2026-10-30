@@ -1,80 +1,120 @@
 # Deployment
 
-The application has two deployable parts:
+Both halves run on Vercel, as two separate projects built from this one
+repository.
 
-| Part | Directory | Host |
-|------|-----------|------|
-| Django API | repository root | Render (blueprint included) |
-| Next.js frontend | `frontend/` | Vercel |
+| Part | Vercel project | Root Directory | Production URL |
+|------|----------------|----------------|----------------|
+| Django API | `satpura-jaivik-api` | repository root | https://satpura-jaivik-api.vercel.app |
+| Next.js frontend | `satpura-jaivik` | `frontend` | https://satpura-jaivik.vercel.app |
 
-Vercel cannot run this Django API as-is: it needs PostgreSQL, a long-lived
-WSGI process, and real email delivery for login OTPs. The local `MAILERS`
-console backend only prints OTPs to the server terminal, so production
-requires an SMTP provider.
+Django runs on Vercel's Python runtime with no adapter: Vercel detects
+`manage.py` and `config/wsgi.py` and serves them as a single Python function.
+The database is Neon Postgres from the Vercel Marketplace.
 
-## 1. Deploy the Django API on Render
+## 1. Backend project (`satpura-jaivik-api`)
 
-The repository contains `render.yaml`, which creates a free web service and a
-free PostgreSQL database.
+Repository root, framework preset **Django**.
 
-1. Create a Render account and choose **New > Blueprint**.
-2. Connect `Ranveergade/satpura_jaivik` and apply the blueprint.
-3. Fill the `sync: false` values when prompted:
-
-   | Variable | Value |
-   |----------|-------|
-   | `CSRF_TRUSTED_ORIGINS` | Vercel URL, e.g. `https://satpura-jaivik.vercel.app` (can be added after the frontend deploy) |
-   | `EMAIL_HOST` | SMTP host, e.g. `smtp.resend.com` |
-   | `EMAIL_HOST_USER` | SMTP username, e.g. `resend` |
-   | `EMAIL_HOST_PASSWORD` | SMTP password/API key |
-   | `DEFAULT_FROM_EMAIL` | Verified sender address |
-
-   `EMAIL_PORT=587` and `EMAIL_USE_TLS=true` are set by the blueprint.
-   Any provider that allows port 587 works (Resend, Brevo, Mailgun, a Gmail
-   app password). Do not use the console mailer in production.
-
-4. The build runs `collectstatic` and `migrate`, then starts
-   `gunicorn config.wsgi:application`.
-5. Verify `https://<service>.onrender.com/api/accounts/csrf/` returns `200`.
-6. Create the first users through `python manage.py createsuperuser` in the
-   Render shell, or via Django admin.
-
-Render's free PostgreSQL plan is time-limited. Move to a paid database before
-relying on it long-term.
-
-## 2. Deploy the frontend on Vercel
-
-1. Import `Ranveergade/satpura_jaivik` in Vercel.
-2. Set **Root Directory** to `frontend`.
-3. Framework preset: Next.js.
-4. Add environment variables:
-
-   ```env
-   NEXT_PUBLIC_API_BASE_URL=/backend
-   DJANGO_ORIGIN=https://<service>.onrender.com
-   ```
-
-5. Deploy.
-6. Add the final Vercel URL to the Render `CSRF_TRUSTED_ORIGINS` value and
-   redeploy the backend if Render does not restart automatically.
-
-`DJANGO_ORIGIN` is read by the server-side rewrite in `frontend/next.config.ts`;
-it is not exposed to the browser. `NEXT_PUBLIC_API_BASE_URL` must stay
-`/backend` so browser requests stay same-origin and the CSRF cookie works.
-
-With the Vercel CLI, from `frontend/`:
+Build command (set in the Vercel project, not in a repository-root
+`vercel.json` — a root `vercel.json` is also applied to the frontend project
+and breaks its build):
 
 ```bash
-npx vercel login
-npx vercel --prod -e DJANGO_ORIGIN=https://<service>.onrender.com
+python manage.py collectstatic --noinput && python manage.py migrate --noinput && python manage.py bootstrap_users
 ```
 
-On Windows without symlink privileges, use the Vercel dashboard or Git
-integration instead of a local CLI build; Vercel then builds remotely.
+Environment variables:
+
+| Variable | Value |
+|----------|-------|
+| `SECRET_KEY` | long random string |
+| `DEBUG` | `false` |
+| `ALLOWED_HOSTS` | `.vercel.app` |
+| `CSRF_TRUSTED_ORIGINS` | `https://*.vercel.app` |
+| `DATABASE_URL` | injected by the Neon integration (pooled connection string) |
+| `BOOTSTRAP_ADMIN_USERNAME` / `_EMAIL` / `_PASSWORD` | first administrator |
+| `BOOTSTRAP_SUPERVISOR_USERNAME` / `_EMAIL` / `_PASSWORD` | first supervisor |
+| `BOOTSTRAP_FARMER_USERNAME` / `_EMAIL` / `_PASSWORD` | first farmer |
+| `EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | SMTP provider (see the OTP note below) |
+
+`config/settings.py` reads `DATABASE_URL`, so no other database variables are
+needed. `DB_CONN_MAX_AGE` defaults to `0`, which is correct for serverless
+instances; set a positive value only on a host that keeps a process alive.
+
+`bootstrap_users` is idempotent: a username that already exists is skipped, so
+a redeploy never resets a password. It creates nothing unless the matching
+`BOOTSTRAP_<PREFIX>_*` variables are present. Delete those variables once the
+accounts exist.
+
+### Login OTP delivery
+
+Login is two-step: password, then a six-digit code by email. Without SMTP
+settings the project falls back to the console mailer, which writes the code to
+the Vercel runtime log only. That is enough to verify the deployment
+(`npx vercel logs --since 5m --json`), but **end users will never receive a
+code**. Configure a real SMTP provider before handing the site to anyone.
+
+## 2. Frontend project (`satpura-jaivik`)
+
+Root Directory `frontend`, framework preset **Next.js**.
+
+```env
+NEXT_PUBLIC_API_BASE_URL=/backend
+DJANGO_ORIGIN=https://satpura-jaivik-api.vercel.app
+```
+
+`DJANGO_ORIGIN` is read only by the server-side rewrite in
+`frontend/next.config.ts` (`/backend/api/:path*` → `DJANGO_ORIGIN/api/:path*`)
+and is not exposed to the browser. `NEXT_PUBLIC_API_BASE_URL` must stay
+`/backend` so browser requests remain same-origin and the CSRF cookie works.
+
+Do not add a repository-root `vercel.json`; keep project settings in the
+dashboard or set them with the CLI.
+
+### Repository-root `.vercelignore`
+
+A root `.vercelignore` applies to every project built from the repo, including
+the frontend. It must not exclude `frontend/`; it only excludes
+`frontend/node_modules/`, `frontend/.next/`, and `frontend/.vercel/`.
 
 ## 3. Post-deploy checks
 
-- `GET https://<vercel-app>/backend/api/accounts/csrf/` returns `200` JSON.
-- Login sends an OTP through the configured SMTP provider.
-- The Vercel origin is present in `CSRF_TRUSTED_ORIGINS`.
-- Admin, supervisor, and farmer logins each land on the correct role view.
+```bash
+curl -i https://satpura-jaivik-api.vercel.app/api/accounts/csrf/     # 200 + CSRF cookie
+curl -i https://satpura-jaivik-api.vercel.app/api/projects/          # 401 unauthenticated
+curl -i https://satpura-jaivik.vercel.app/login                      # 200
+curl -i https://satpura-jaivik.vercel.app/backend/api/accounts/csrf/ # 200, proxied
+```
+
+Then log in through the UI as each role and confirm the landing view matches
+the role.
+
+## 4. Redeploying
+
+Vercel is connected to `Ranveergade/satpura_jaivik`, so `git push origin main`
+rebuilds both projects. Because the backend build runs `migrate`, new
+migrations are applied on deploy.
+
+Local CLI deploys are not the supported path on Windows: `vercel deploy` fails
+with `[EPERM] symlink ... .func`. Use the Git integration.
+
+## 5. Local development
+
+```bash
+.venv/Scripts/python.exe manage.py migrate
+.venv/Scripts/python.exe manage.py runserver 8000
+
+cd frontend
+npm install
+npm run dev            # http://localhost:3000, proxies /backend to :8000
+```
+
+`frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=/backend
+DJANGO_ORIGIN=http://127.0.0.1:8000
+```
+
+`.env` and `.env.local` are gitignored; use `.env.example` as the template.

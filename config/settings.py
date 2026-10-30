@@ -53,7 +53,7 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
-# Render (and most proxies) terminate TLS and forward the original scheme.
+# Vercel (and most proxies) terminate TLS and forward the original scheme.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
