@@ -117,10 +117,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if DATABASE_URL:
+    # Serverless functions scale to zero, so pooled connections must not be
+    # cached across requests. Set DB_CONN_MAX_AGE for a long-lived host.
     DATABASES = {
         "default": dj_database_url.parse(
             DATABASE_URL,
-            conn_max_age=600,
+            conn_max_age=int(os.getenv("DB_CONN_MAX_AGE", "0")),
             conn_health_checks=True,
         )
     }
