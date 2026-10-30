@@ -128,7 +128,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <button
           type="button"
-          className="rounded-md p-2 text-white hover:bg-white/10"
+          className="rounded-md p-2 text-white hover:bg-white/10 md:hidden"
           onClick={() => setDrawerOpen(false)}
           aria-label="Close menu"
         >
